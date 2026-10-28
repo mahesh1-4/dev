@@ -1,0 +1,37 @@
+{
+	"name": "pl_db_ingest",
+	"properties": {
+		"description": "pl_db_ingest",
+		"activities": [
+			{
+				"name": "SetRunTs",
+				"description": "SetRunTs",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "run_ts_v",
+					"value": {
+						"value": "@if(empty(pipeline().parameters.run_ts), utcNow(), pipeline().parameters.run_ts)",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"run_ts": {
+				"type": "string"
+			}
+		},
+		"variables": {
+			"run_ts_v": {
+				"type": "String"
+			}
+		},
+		"annotations": []
+	}
+}
