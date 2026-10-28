@@ -1,0 +1,372 @@
+{
+	"name": "PL_FedEx_Batch_Migration",
+	"properties": {
+		"activities": [
+			{
+				"name": "LKP_Control_Metadata",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": "SELECT source_table, load_type, watermark_column, last_watermark, target_folder\nFROM etl_control_metadata\nWHERE is_active = 'Y'",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "DS_SQL_Table",
+						"type": "DatasetReference",
+						"parameters": {
+							"TableName": "etl_control_metadata"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "FE_Table_Loop",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "LKP_Control_Metadata",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('LKP_Control_Metadata').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 2,
+					"activities": [
+						{
+							"name": "IF_Incremental_or_Full",
+							"type": "IfCondition",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@equals(item().load_type,'Incremental')",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "CPY_Full_SQL_to_Bronze",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "SqlServerSource",
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "DS_SQL_Table",
+												"type": "DatasetReference",
+												"parameters": {
+													"TableName": "@item().source_table"
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "DS_ADLS_Parquet_Bronze",
+												"type": "DatasetReference",
+												"parameters": {
+													"FolderPath": "@concat(item().target_folder,'/load_date=',formatDateTime(utcnow(),'yyyy-MM-dd'))",
+													"FileName": "@concat(toLower(item().source_table),'_',formatDateTime(utcnow(),'yyyyMMddHHmmss'),'.parquet')"
+												}
+											}
+										]
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "CPY_Incremental_SQL_to_Bronze",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "SqlServerSource",
+												"sqlReaderQuery": {
+													"value": "@concat(\n  'SELECT * FROM ', \n  item().source_table,\n  ' WHERE ',\n  item().watermark_column,\n  ' > ''',\n  item().last_watermark,\n  ''''\n)",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "DS_SQL_Table",
+												"type": "DatasetReference",
+												"parameters": {
+													"TableName": "@item().source_table"
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "DS_ADLS_Parquet_Bronze",
+												"type": "DatasetReference",
+												"parameters": {
+													"FolderPath": "@concat(item().target_folder,'/load_date=',formatDateTime(utcnow(),'yyyy-MM-dd'))",
+													"FileName": "@concat(toLower(item().source_table),'_',formatDateTime(utcnow(),'yyyyMMddHHmmss'),'.parquet')"
+												}
+											}
+										]
+									},
+									{
+										"name": "LKP_New_Watermark",
+										"type": "Lookup",
+										"dependsOn": [
+											{
+												"activity": "CPY_Incremental_SQL_to_Bronze",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "SqlServerSource",
+												"sqlReaderQuery": {
+													"value": "@concat(\n  'SELECT MAX(',\n  item().watermark_column,\n  ') AS new_watermark FROM ',\n  item().source_table\n)",
+													"type": "Expression"
+												},
+												"queryTimeout": "02:00:00",
+												"partitionOption": "None"
+											},
+											"dataset": {
+												"referenceName": "DS_SQL_Table",
+												"type": "DatasetReference",
+												"parameters": {
+													"TableName": "@item().source_table"
+												}
+											},
+											"firstRowOnly": true
+										}
+									},
+									{
+										"name": "SP_Update_Watermark",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "LKP_New_Watermark",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[usp_update_watermark]",
+											"storedProcedureParameters": {
+												"new_watermark": {
+													"value": {
+														"value": "@activity('LKP_New_Watermark').output.firstRow.new_watermark",
+														"type": "Expression"
+													},
+													"type": "DateTime"
+												},
+												"source_table": {
+													"value": {
+														"value": "@item().source_table",
+														"type": "Expression"
+													},
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "LS_SQL_OnPrem",
+											"type": "LinkedServiceReference"
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "DBX_Delivery_Performance_KPI",
+				"type": "DatabricksNotebook",
+				"dependsOn": [
+					{
+						"activity": "FE_Table_Loop",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"notebookPath": "/Users/mahesh.azure2023@gmail.com/Dev/Fedex_Delivery_onprem_KPI",
+					"baseParameters": {
+						"p_process_date": {
+							"value": "@formatDateTime(utcnow(),'yyyy-MM-dd')",
+							"type": "Expression"
+						},
+						"p_bronze_base_path": "fedex/bronze",
+						"p_silver_base_path": "fedex/silver",
+						"p_gold_base_path": "fedex/gold"
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_Databricks_FedEx",
+					"type": "LinkedServiceReference"
+				}
+			},
+			{
+				"name": "SP_Audit_Success",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "DBX_Delivery_Performance_KPI",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[usp_insert_audit_log]",
+					"storedProcedureParameters": {
+						"pipeline_name": {
+							"value": {
+								"value": "@pipeline().Pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"run_status": {
+							"value": "Success",
+							"type": "String"
+						},
+						"run_time": {
+							"value": {
+								"value": "@utcnow()",
+								"type": "Expression"
+							},
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "LS_SQL_OnPrem",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"parameters": {
+			"p_load_type": {
+				"type": "string",
+				"defaultValue": "DAILY"
+			},
+			"p_trigger_date": {
+				"type": "string"
+			},
+			"p_run_mode": {
+				"type": "string"
+			}
+		},
+		"annotations": [],
+		"lastPublishTime": "2026-04-16T01:29:11Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

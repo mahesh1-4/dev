@@ -1,0 +1,12 @@
+{
+	"name": "AKV_Fedex_onprem",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"description": "AKV_Fedex_onprem",
+		"annotations": [],
+		"type": "AzureKeyVault",
+		"typeProperties": {
+			"baseUrl": "https://maheshkey.vault.azure.net/"
+		}
+	}
+}

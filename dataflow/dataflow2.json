@@ -1,0 +1,75 @@
+{
+	"name": "dataflow2",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "targetblob",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "targetblob",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "select1"
+				},
+				{
+					"name": "aggregate1"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          FlightNumber as short,",
+				"          Airline as string,",
+				"          DepartureCity as string,",
+				"          ArrivalCity as string,",
+				"          DepartureTime as timestamp,",
+				"          ArrivalTime as timestamp,",
+				"          Price as short,",
+				"          Passengers as short",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     inferDriftedColumnTypes: true,",
+				"     limit: 10,",
+				"     ignoreNoFilesFound: false) ~> source1",
+				"source1 derive({Arrival City Code} = split(ArrivalCity,'-')[1],",
+				"          {Arrival City Description} = split(ArrivalCity,'-')[2]) ~> derivedColumn1",
+				"derivedColumn1 select(mapColumn(",
+				"          FlightNumber,",
+				"          Airline,",
+				"          ArrivalCity,",
+				"          Price,",
+				"          Passengers,",
+				"          {Arrival City Code},",
+				"          {Arrival City Description}",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select1",
+				"select1 aggregate(groupBy(Airline),",
+				"     Passengers = sum(Passengers),",
+				"          Price = sum(Price)) ~> aggregate1",
+				"aggregate1 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     filePattern:'Airline_Totals.csv',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> sink1"
+			]
+		}
+	}
+}

@@ -1,0 +1,135 @@
+{
+	"name": "dataflow1",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "Mahesh_01_userdata_sourcecsv",
+						"type": "DatasetReference"
+					},
+					"name": "Mahesh01userdatacsv"
+				},
+				{
+					"dataset": {
+						"referenceName": "Mahesh_02_jsonsource",
+						"type": "DatasetReference"
+					},
+					"name": "Mahesh02jsonsource"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "logfiles",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				},
+				{
+					"dataset": {
+						"referenceName": "Mahesh03output",
+						"type": "DatasetReference"
+					},
+					"name": "sink2"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "join1"
+				},
+				{
+					"name": "select1"
+				},
+				{
+					"name": "filter1"
+				},
+				{
+					"name": "derivedColumn2"
+				},
+				{
+					"name": "select2"
+				}
+			],
+			"scriptLines": [
+				"parameters{",
+				"     parameter1 as string ('active')",
+				"}",
+				"source(output(",
+				"          id as short,",
+				"          name as string,",
+				"          age as short",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: true,",
+				"     inferDriftedColumnTypes: true,",
+				"     limit: 50,",
+				"     ignoreNoFilesFound: false) ~> Mahesh01userdatacsv",
+				"source(output(",
+				"          id as integer,",
+				"          attributes as (location as string, status as string)",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: true,",
+				"     inferDriftedColumnTypes: true,",
+				"     limit: 50,",
+				"     ignoreNoFilesFound: false,",
+				"     documentForm: 'arrayOfDocuments') ~> Mahesh02jsonsource",
+				"Mahesh02jsonsource derive({location } = attributes.location,",
+				"          status = attributes.status) ~> derivedColumn1",
+				"Mahesh01userdatacsv, derivedColumn1 join(Mahesh01userdatacsv@id == Mahesh02jsonsource@id,",
+				"     joinType:'inner',",
+				"     matchType:'exact',",
+				"     ignoreSpaces: false,",
+				"     broadcast: 'auto')~> join1",
+				"join1 select(mapColumn(",
+				"          id = Mahesh01userdatacsv@id,",
+				"          name,",
+				"          age,",
+				"          id = Mahesh02jsonsource@id,",
+				"          {location },",
+				"          status",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select1",
+				"select1 filter(status==$parameter1) ~> filter1",
+				"filter1 derive(logmessage = concat('Processed row: ',' name=',name, ', Location=',{location },', Status=',status),",
+				"          {Last modified} = currentTimestamp()) ~> derivedColumn2",
+				"derivedColumn2 select(mapColumn(",
+				"          id,",
+				"          name,",
+				"          age,",
+				"          {location },",
+				"          status,",
+				"          {Last modified}",
+				"     ),",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true) ~> select2",
+				"derivedColumn2 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     mapColumn(",
+				"          logmessage,",
+				"          {Last modified}",
+				"     )) ~> sink1",
+				"select2 sink(allowSchemaDrift: true,",
+				"     validateSchema: true,",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     mapColumn(",
+				"          id,",
+				"          name,",
+				"          age,",
+				"          {location },",
+				"          status,",
+				"          {Last modified}",
+				"     )) ~> sink2"
+			]
+		}
+	}
+}

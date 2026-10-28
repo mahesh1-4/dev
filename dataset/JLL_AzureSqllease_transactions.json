@@ -1,0 +1,17 @@
+{
+	"name": "JLL_AzureSqllease_transactions",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSqlDatabase1",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "lease_transactions"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

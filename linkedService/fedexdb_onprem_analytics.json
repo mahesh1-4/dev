@@ -1,0 +1,30 @@
+{
+	"name": "fedexdb_onprem_analytics",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"description": "onprem to azure analytics",
+		"annotations": [],
+		"type": "SqlServer",
+		"typeProperties": {
+			"server": "USHA\\SQLEXPRESS",
+			"database": "fedex_db",
+			"encrypt": "optional",
+			"trustServerCertificate": false,
+			"authenticationType": "SQL",
+			"userName": "mahesh",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AKV_Fedex_onprem",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "MaheshonpremDB",
+				"secretVersion": "ce8468d50857470e84c37ca3af41a14d"
+			}
+		},
+		"connectVia": {
+			"referenceName": "selfhostedintegrationRuntime1",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

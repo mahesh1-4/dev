@@ -1,0 +1,26 @@
+{
+	"name": "Watermark_dataset",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSqlDatabase1",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "TABLE_NAME",
+				"type": "nvarchar"
+			},
+			{
+				"name": "Lastupdatedate",
+				"type": "date"
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "WATERMARK_sales"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

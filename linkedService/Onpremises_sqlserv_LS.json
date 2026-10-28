@@ -1,0 +1,17 @@
+{
+	"name": "Onpremises_sqlserv_LS",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"description": "Onpremises_sqlserv_LS",
+		"annotations": [],
+		"type": "SqlServer",
+		"typeProperties": {
+			"connectionString": "integrated security=False;data source=USHA\\SQLEXPRESS;initial catalog=Mahesh_onprem_DB;user id=mahesh",
+			"encryptedCredential": "eyJDcmVkZW50aWFsSWQiOiI2NGFhNTNhMS1kMGQxLTQyYTMtYTljYS02MTgzZjE1M2ExN2QiLCJWZXJzaW9uIjoiMi4wIiwiQ2xhc3NUeXBlIjoiTWljcm9zb2Z0LkRhdGFQcm94eS5Db3JlLkludGVyU2VydmljZURhdGFDb250cmFjdC5DcmVkZW50aWFsU1UwNkNZMTQifQ=="
+		},
+		"connectVia": {
+			"referenceName": "selfhostedintegrationRuntime1",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

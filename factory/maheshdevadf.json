@@ -1,0 +1,15 @@
+{
+	"name": "maheshdevadf",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "centralindia",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "8811fa80-e2f5-4414-a932-317083300f56",
+		"tenantId": "1e2249a3-fab9-4cd8-b175-b51fd8a521b7"
+	}
+}
