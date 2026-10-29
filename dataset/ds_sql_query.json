@@ -1,0 +1,12 @@
+{
+	"name": "ds_sql_query",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "fedexdb_onprem_analytics",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "SqlServerTable",
+		"schema": []
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"name": "ds_sql_control",
+	"properties": {
+		"description": "control table from sql server for analytics",
+		"linkedServiceName": {
+			"referenceName": "fedexdb_onprem_analytics",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "SqlServerTable",
+		"schema": []
+	}
+}

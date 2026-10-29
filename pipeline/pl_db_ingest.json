@@ -20,6 +20,376 @@
 						"type": "Expression"
 					}
 				}
+			},
+			{
+				"name": "LookupControl",
+				"description": "LookupControl",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "SetRunTs",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SqlServerSource",
+						"sqlReaderQuery": "SELECT * FROM dbo.etl_control WHERE active_flag = 1",
+						"queryTimeout": "00:05:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "ds_sql_control",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEachTable",
+				"description": "ForEachTable",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "LookupControl",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('LookupControl').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 5,
+					"activities": [
+						{
+							"name": "IsIncremental",
+							"description": "IsIncremental",
+							"type": "IfCondition",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@equals(item().load_type,'incremental')",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "CopyFull",
+										"description": "CopyFull",
+										"type": "Copy",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "SqlServerSource",
+												"sqlReaderQuery": "@concat('SELECT * FROM ', item().table_name)",
+												"queryTimeout": "00:05:00",
+												"partitionOption": "None"
+											},
+											"sink": {
+												"type": "DelimitedTextSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "DelimitedTextWriteSettings",
+													"quoteAllText": true,
+													"fileExtension": ".txt"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "ds_sql_query",
+												"type": "DatasetReference"
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "ds_adls_parquet_landing",
+												"type": "DatasetReference",
+												"parameters": {
+													"path": "@concat(item().target_path,'/year=',formatDateTime(variables('run_ts_v'),'yyyy'),'/month=',formatDateTime(variables('run_ts_v'),'MM'),'/day=',formatDateTime(variables('run_ts_v'),'dd'))",
+													"fileName": "@concat(replace(item().table_name,'dbo.',''),'_',formatDateTime(variables('run_ts_v'),'yyyyMMddHHmmss'),'.parquet')"
+												}
+											}
+										]
+									},
+									{
+										"name": "LogFull",
+										"description": "LogFull",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "CopyFull",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[usp_log_run]",
+											"storedProcedureParameters": {
+												"from_wm": {
+													"value": "",
+													"type": "String"
+												},
+												"load_type": {
+													"value": "full",
+													"type": "String"
+												},
+												"rows": {
+													"value": "@activity('CopyFull').output.rowsCopied",
+													"type": "Int64"
+												},
+												"run_id": {
+													"value": "@pipeline().RunId",
+													"type": "String"
+												},
+												"table_name": {
+													"value": "@item().table_name",
+													"type": "String"
+												},
+												"to_wm": {
+													"value": "",
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "fedexdb_onprem_analytics",
+											"type": "LinkedServiceReference"
+										}
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "GetNewWatermark",
+										"description": "GetNewWatermark",
+										"type": "Lookup",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "SqlServerSource",
+												"sqlReaderQuery": "@concat('SELECT COALESCE(CONVERT(varchar(27), MAX(', item().watermark_col, '), 121), ''', item().last_watermark, ''') AS new_wm FROM ', item().table_name)",
+												"queryTimeout": "00:05:00",
+												"partitionOption": "None"
+											},
+											"dataset": {
+												"referenceName": "ds_sql_query",
+												"type": "DatasetReference"
+											},
+											"firstRowOnly": false
+										}
+									},
+									{
+										"name": "CopyIncremental",
+										"description": "CopyIncremental",
+										"type": "Copy",
+										"dependsOn": [
+											{
+												"activity": "GetNewWatermark",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.02:00:00",
+											"retry": 3,
+											"retryIntervalInSeconds": 60,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"source": {
+												"type": "SqlServerSource",
+												"sqlReaderQuery": "@concat('SELECT * FROM ', item().table_name, ' WHERE ', item().watermark_col, ' > ''', item().last_watermark, ''' AND ', item().watermark_col, ' <= ''', activity('GetNewWatermark').output.firstRow.new_wm, '''')",
+												"queryTimeout": "00:05:00",
+												"partitionOption": "None"
+											},
+											"sink": {
+												"type": "DelimitedTextSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "DelimitedTextWriteSettings",
+													"quoteAllText": true,
+													"fileExtension": ".txt"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "ds_sql_query",
+												"type": "DatasetReference"
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "ds_adls_parquet_landing",
+												"type": "DatasetReference",
+												"parameters": {
+													"path": "@concat(item().target_path,'/year=',formatDateTime(variables('run_ts_v'),'yyyy'),'/month=',formatDateTime(variables('run_ts_v'),'MM'),'/day=',formatDateTime(variables('run_ts_v'),'dd'))",
+													"fileName": "@concat(replace(item().table_name,'dbo.',''),'_',formatDateTime(variables('run_ts_v'),'yyyyMMddHHmmss'),'.parquet')"
+												}
+											}
+										]
+									},
+									{
+										"name": "UpdateWatermark",
+										"description": "UpdateWatermark",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "CopyIncremental",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[usp_update_watermark]",
+											"storedProcedureParameters": {
+												"new_wm": {
+													"value": "@activity('GetNewWatermark').output.firstRow.new_wm",
+													"type": "String"
+												},
+												"table_name": {
+													"value": "@item().table_name",
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "fedexdb_onprem_analytics",
+											"type": "LinkedServiceReference"
+										}
+									},
+									{
+										"name": "LogIncremental",
+										"description": "LogIncremental",
+										"type": "SqlServerStoredProcedure",
+										"dependsOn": [
+											{
+												"activity": "UpdateWatermark",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "0.12:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"storedProcedureName": "[dbo].[usp_log_run]",
+											"storedProcedureParameters": {
+												"from_wm": {
+													"value": "@item().last_watermark",
+													"type": "String"
+												},
+												"load_type": {
+													"value": "incremental",
+													"type": "String"
+												},
+												"rows": {
+													"value": "@activity('CopyIncremental').output.rowsCopied",
+													"type": "Int64"
+												},
+												"run_id": {
+													"value": "@pipeline().RunId",
+													"type": "String"
+												},
+												"table_name": {
+													"value": "@item().table_name",
+													"type": "String"
+												},
+												"to_wm": {
+													"value": "@activity('GetNewWatermark').output.firstRow.new_wm",
+													"type": "String"
+												}
+											}
+										},
+										"linkedServiceName": {
+											"referenceName": "fedexdb_onprem_analytics",
+											"type": "LinkedServiceReference"
+										}
+									}
+								]
+							}
+						}
+					]
+				}
 			}
 		],
 		"parameters": {
