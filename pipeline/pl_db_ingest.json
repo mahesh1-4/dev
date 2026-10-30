@@ -225,7 +225,7 @@
 												"referenceName": "ds_sql_query",
 												"type": "DatasetReference"
 											},
-											"firstRowOnly": false
+											"firstRowOnly": true
 										}
 									},
 									{
